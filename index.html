@@ -77,6 +77,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .login-switch span { color: #86efac; font-weight: 700; }
 .login-error { font-size: 12px; color: #fca5a5; text-align: center; margin-top: 10px; min-height: 16px; }
 .login-loading { text-align: center; color: #7a6a58; font-size: 13px; }
+.google-btn { width: 100%; background: #fff; color: #1c1917; border: none; padding: 13px; border-radius: 10px; font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.google-btn:active { opacity: .85; }
+.google-btn img { width: 20px; height: 20px; }
+.login-divider { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px; }
+.login-divider hr { flex: 1; border: none; border-top: 1px solid #3a3330; }
+.login-divider span { font-size: 11px; color: #7a6a58; white-space: nowrap; }
 .app-content { display: none; }
 .app-content.ready { display: block; }
 .logout-btn { font-size: 11px; color: #7a6a58; background: none; border: none; cursor: pointer; font-family: 'Cairo', sans-serif; text-decoration: underline; }
@@ -179,7 +185,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 </style>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -195,7 +201,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   const auth = getAuth(fbApp);
   const db = getFirestore(fbApp);
 
-  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, doc, getDoc, setDoc };
+  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, doc, getDoc, setDoc };
   window.fbReady = true;
   window.dispatchEvent(new Event('fb-ready'));
 </script>
@@ -211,6 +217,11 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     <input class="login-input" type="password" id="login-password" placeholder="كلمة السر" autocomplete="current-password">
     <button class="login-btn" id="login-submit-btn" onclick="handleAuthSubmit()">تسجيل الدخول</button>
     <div class="login-switch" id="login-switch-mode" onclick="toggleAuthMode()">مفيش حساب؟ <span>اعمل حساب جديد</span></div>
+    <div class="login-divider"><hr><span>أو</span><hr></div>
+    <button class="google-btn" onclick="handleGoogleSignIn()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+      تسجيل الدخول بواسطة Google
+    </button>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
@@ -384,6 +395,24 @@ function toggleAuthMode() {
   document.getElementById('login-submit-btn').textContent = isSignupMode ? 'إنشاء حساب' : 'تسجيل الدخول';
   document.getElementById('login-switch-mode').innerHTML = isSignupMode ? 'عندك حساب؟ <span>سجل دخول</span>' : 'مفيش حساب؟ <span>اعمل حساب جديد</span>';
   document.getElementById('login-error').textContent = '';
+}
+
+async function handleGoogleSignIn() {
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const provider = new window.fb.GoogleAuthProvider();
+    await window.fb.signInWithPopup(window.fb.auth, provider);
+    // onAuthStateChanged will handle the rest
+  } catch(e) {
+    const map = {
+      'auth/popup-closed-by-user': 'أغلقت نافذة تسجيل الدخول',
+      'auth/popup-blocked': 'المتصفح حجب النافذة، اسمح بالـ popups',
+      'auth/network-request-failed': 'مشكلة في الاتصال بالإنترنت',
+      'auth/cancelled-popup-request': '',
+    };
+    errEl.textContent = map[e.code] || ('حصل خطأ: ' + e.code);
+  }
 }
 
 async function handleAuthSubmit() {
