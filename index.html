@@ -20,6 +20,7 @@
 <style>
 :root { color-scheme: dark; }
 html { -webkit-text-size-adjust: 100%; forced-color-adjust: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
 :root {
   --bg: #1c1917;
   --bg2: #211e1b;
@@ -189,7 +190,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyAoWLXlO-znjexLXtMyFA52CXaN80AXk0Y",
+    apiKey: "AIzaSyAowLXL0-znjexLXtMyFA52CXaN80AXk8Y",
     authDomain: "first-step-project-9d941.firebaseapp.com",
     projectId: "first-step-project-9d941",
     storageBucket: "first-step-project-9d941.firebasestorage.app",
@@ -208,7 +209,18 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 </head>
 <body>
 
-<div class="login-screen" id="login-screen">
+<div class="login-screen" id="loading-screen">
+  <div class="login-box" style="text-align:center;">
+    <div class="login-logo">✅</div>
+    <div class="login-title">نقاطي</div>
+    <div style="margin-top:20px; color:#7a6a58; font-size:13px;">جاري التحميل...</div>
+    <div style="margin-top:16px;">
+      <div style="width:40px; height:40px; border:3px solid #3a3330; border-top-color:#86efac; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="login-screen hidden" id="login-screen">
   <div class="login-box">
     <div class="login-logo">✅</div>
     <div class="login-title">نقاطي</div>
@@ -456,6 +468,7 @@ async function handleLogout() {
 }
 
 function initAuthListener() {
+  document.getElementById('loading-screen').classList.add('hidden');
   window.fb.onAuthStateChanged(window.fb.auth, async (user) => {
     if (user) {
       currentUser = user;
@@ -727,6 +740,18 @@ if (window.fbReady) {
   initAuthListener();
 } else {
   window.addEventListener('fb-ready', initAuthListener, { once: true });
+  // fallback: if Firebase doesn't load in 5 seconds, show error
+  setTimeout(() => {
+    if (!window.fbReady) {
+      const loginScreen = document.getElementById('login-screen');
+      const errEl = document.getElementById('login-error');
+      if (loginScreen && errEl) {
+        loginScreen.classList.remove('hidden');
+        document.getElementById('app-content').classList.remove('ready');
+        errEl.textContent = 'تأكد من الاتصال بالإنترنت وحاول تاني';
+      }
+    }
+  }, 5000);
 }
 
 /* PWA install prompt */
