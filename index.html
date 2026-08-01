@@ -378,9 +378,11 @@ const DEFAULT_CONFIG = {
 
 let config = null;
 let state = { sel:0, checks:{} };
-let saveTimeout = null;
 let currentUser = null;
 let isSignupMode = false;
+const LS_KEY = 'nokati_data';
+let saveInFlight = false;
+let pendingSave = false;
 
 function setSyncStatus(saving) {
   const dot = document.getElementById('sync-dot');
@@ -471,7 +473,19 @@ function initAuthListener() {
 }
 
 async function loadData() {
-  if (!currentUser) return;
+  const defaults = () => ({
+    config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
+    state: { sel:0, checks:{} }
+  });
+  const localData = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch(e) { return null; } })();
+  if (!currentUser) {
+    if (localData && localData.config && localData.state) {
+      config = localData.config; state = localData.state;
+    } else {
+      const d = defaults(); config = d.config; state = d.state;
+    }
+    render(); renderSettings(); return;
+  }
   const userDocRef = window.fb.doc(window.fb.db, 'trackers', currentUser.uid);
   try {
     const snap = await window.fb.getDoc(userDocRef);
@@ -479,30 +493,47 @@ async function loadData() {
       const data = snap.data();
       config = data.config ? JSON.parse(data.config) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
       state = data.state ? JSON.parse(data.state) : { sel:0, checks:{} };
+    } else if (localData && localData.config && localData.state) {
+      config = localData.config; state = localData.state;
+      await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
     } else {
-      config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-      state = { sel:0, checks:{} };
+      const d = defaults(); config = d.config; state = d.state;
       await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
     }
   } catch(e) {
-    config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-    state = { sel:0, checks:{} };
+    if (localData && localData.config && localData.state) {
+      config = localData.config; state = localData.state;
+    } else {
+      const d = defaults(); config = d.config; state = d.state;
+    }
   }
+  saveLocal();
   render();
   renderSettings();
 }
 
-async function persistToFirestore() {
-  if (!currentUser) return;
+function saveLocal() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ config, state, savedAt: Date.now() })); } catch(e) {}
+}
+
+async function doSave() {
+  pendingSave = false;
+  if (!currentUser) { saveLocal(); setSyncStatus(false); return; }
   setSyncStatus(true);
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(async () => {
-    try {
-      const userDocRef = window.fb.doc(window.fb.db, 'trackers', currentUser.uid);
-      await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
-    } catch(e) {}
-    setSyncStatus(false);
-  }, 500);
+  saveLocal();
+  try {
+    const userDocRef = window.fb.doc(window.fb.db, 'trackers', currentUser.uid);
+    await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
+  } catch(e) { setSyncStatus(false); return; }
+  setSyncStatus(false);
+}
+
+function persistToFirestore() {
+  pendingSave = true;
+  saveLocal();
+  if (saveInFlight) return;
+  saveInFlight = true;
+  doSave().finally(() => { saveInFlight = false; if (pendingSave) doSave(); });
 }
 
 function saveConfig() { persistToFirestore(); }
@@ -728,6 +759,11 @@ if (window.fbReady) {
 } else {
   window.addEventListener('fb-ready', initAuthListener, { once: true });
 }
+
+window.addEventListener('pagehide', () => {
+  if (pendingSave) doSave();
+  saveLocal();
+});
 
 /* PWA install prompt */
 let deferredPrompt = null;
