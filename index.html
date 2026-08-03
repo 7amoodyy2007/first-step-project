@@ -196,7 +196,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 </style>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -212,7 +212,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   const auth = getAuth(fbApp);
   const db = getFirestore(fbApp);
 
-  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, doc, getDoc, setDoc };
+  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, doc, getDoc, setDoc };
   window.fbReady = true;
   window.dispatchEvent(new Event('fb-ready'));
 </script>
@@ -403,20 +403,20 @@ async function handleGoogleSignIn() {
   try {
     const provider = new window.fb.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobile) {
-      await window.fb.signInWithRedirect(window.fb.auth, provider);
-    } else {
-      await window.fb.signInWithPopup(window.fb.auth, provider);
-    }
+    await window.fb.signInWithPopup(window.fb.auth, provider);
   } catch(e) {
-    const map = {
-      'auth/popup-closed-by-user': 'أغلقت نافذة تسجيل الدخول',
-      'auth/popup-blocked': 'المتصفح حجب النافذة، اسمح بالـ popups',
-      'auth/network-request-failed': 'مشكلة في الاتصال بالإنترنت',
-      'auth/cancelled-popup-request': '',
-    };
-    errEl.textContent = map[e.code] || ('حصل خطأ: ' + e.code);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile && (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request' || e.code === 'auth/popup-closed-by-user')) {
+      errEl.textContent = 'على الموبايل، سجّل دخول بالإيميل وكلمة السر عشان Google بيشتغل غلط على الموبايل';
+    } else {
+      const map = {
+        'auth/popup-closed-by-user': 'أغلقت نافذة تسجيل الدخول',
+        'auth/popup-blocked': 'المتصفح حجب النافذة، اسمح بالـ popups',
+        'auth/network-request-failed': 'مشكلة في الاتصال بالإنترنت',
+        'auth/cancelled-popup-request': '',
+      };
+      errEl.textContent = map[e.code] || ('حصل خطأ: ' + e.code);
+    }
   }
 }
 
@@ -818,12 +818,8 @@ function resetWeek() {
 
 if (window.fbReady) {
   initAuthListener();
-  window.fb.getRedirectResult(window.fb.auth).catch(() => {});
 } else {
-  window.addEventListener('fb-ready', () => {
-    initAuthListener();
-    window.fb.getRedirectResult(window.fb.auth).catch(() => {});
-  }, { once: true });
+  window.addEventListener('fb-ready', initAuthListener, { once: true });
 }
 
 window.addEventListener('pagehide', () => {
