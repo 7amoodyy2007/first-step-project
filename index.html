@@ -208,7 +208,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 </head>
 <body>
 
-<div class="login-screen hidden" id="login-screen">
+<div class="login-screen" id="login-screen">
   <div class="login-box">
     <div class="login-logo">✅</div>
     <div class="login-title">نقاطي</div>
@@ -355,32 +355,16 @@ const DAYS = ['السبت','الأحد','الاثنين','الثلاثاء','ا�
 
 const DEFAULT_CONFIG = {
   minPts: 35,
-  dailyTasks: [
-    { id:'quran', name:'ورد القرآن', pts:20 },
-    { id:'study', name:'ساعة مذاكرة', pts:20 },
-    { id:'course', name:'نص ساعة كورس / لغة', pts:20 },
-    { id:'session', name:'واجب الجلسات + مقتطف', pts:10 },
-    { id:'good', name:'عمل سار', pts:15 },
-  ],
-  flexTasks: [
-    { id:'sport', name:'الرياضة', pts:20, maxDays:3 },
-    { id:'behavior', name:'كورس تعديل السلوك', pts:15, maxDays:3 },
-    { id:'series', name:'درس من السلسلتين', pts:15, maxDays:2 },
-    { id:'bonus', name:'قراءة كتاب / محاضرة', pts:10, maxDays:7 },
-  ],
-  prizes: [
-    { pts:480, emoji:'🏆', name:'أسطوري', desc:'أفضل أسبوع ممكن — استاهلت أكبر جايزة' },
-    { pts:400, emoji:'🥇', name:'ممتاز', desc:'أسبوع قوي جداً وملتزم' },
-    { pts:300, emoji:'✅', name:'كويس جداً', desc:'التزام واضح ومجهود حقيقي' },
-    { pts:200, emoji:'👍', name:'مقبول', desc:'بداية كويسة، فيه مجال تتحسن' },
-  ]
+  dailyTasks: [],
+  flexTasks: [],
+  prizes: []
 };
 
 let config = null;
 let state = { sel:0, checks:{} };
 let currentUser = null;
 let isSignupMode = false;
-const LS_KEY = 'nokati_data';
+const LS_PREFIX = 'nokati_';
 let saveInFlight = false;
 let pendingSave = false;
 
@@ -426,7 +410,9 @@ async function handleAuthSubmit() {
   if (password.length < 6) { errEl.textContent = 'كلمة السر لازم تكون 6 حروف أو أكتر'; return; }
 
   const btn = document.getElementById('login-submit-btn');
-  btn.disabled = true; btn.textContent = '...';
+  btn.disabled = true; btn.textContent = 'جاري التسجيل...';
+  const allInputs = document.querySelectorAll('.login-input');
+  allInputs.forEach(i => i.disabled = true);
 
   try {
     if (isSignupMode) {
@@ -434,7 +420,6 @@ async function handleAuthSubmit() {
     } else {
       await window.fb.signInWithEmailAndPassword(window.fb.auth, email, password);
     }
-    // onAuthStateChanged will handle the rest
   } catch(e) {
     const map = {
       'auth/email-already-in-use': 'الإيميل ده متسجل قبل كده، جرب تسجل دخول',
@@ -449,6 +434,7 @@ async function handleAuthSubmit() {
   } finally {
     btn.disabled = false;
     btn.textContent = isSignupMode ? 'إنشاء حساب' : 'تسجيل الدخول';
+    allInputs.forEach(i => i.disabled = false);
   }
 }
 
@@ -466,6 +452,8 @@ function initAuthListener() {
       await loadData();
     } else {
       currentUser = null;
+      config = null;
+      state = { sel:0, checks:{} };
       document.getElementById('login-screen').classList.remove('hidden');
       document.getElementById('app-content').classList.remove('ready');
     }
@@ -473,17 +461,12 @@ function initAuthListener() {
 }
 
 async function loadData() {
-  const defaults = () => ({
+  const empty = () => ({
     config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
     state: { sel:0, checks:{} }
   });
-  const localData = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch(e) { return null; } })();
   if (!currentUser) {
-    if (localData && localData.config && localData.state) {
-      config = localData.config; state = localData.state;
-    } else {
-      const d = defaults(); config = d.config; state = d.state;
-    }
+    const d = empty(); config = d.config; state = d.state;
     render(); renderSettings(); return;
   }
   const userDocRef = window.fb.doc(window.fb.db, 'trackers', currentUser.uid);
@@ -493,27 +476,31 @@ async function loadData() {
       const data = snap.data();
       config = data.config ? JSON.parse(data.config) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
       state = data.state ? JSON.parse(data.state) : { sel:0, checks:{} };
-    } else if (localData && localData.config && localData.state) {
-      config = localData.config; state = localData.state;
-      await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
     } else {
-      const d = defaults(); config = d.config; state = d.state;
+      const d = empty(); config = d.config; state = d.state;
       await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
     }
   } catch(e) {
-    if (localData && localData.config && localData.state) {
-      config = localData.config; state = localData.state;
-    } else {
-      const d = defaults(); config = d.config; state = d.state;
-    }
+    const d = empty(); config = d.config; state = d.state;
   }
+  clearGuestLocal();
   saveLocal();
   render();
   renderSettings();
 }
 
+function getLSKey() { return LS_PREFIX + (currentUser ? currentUser.uid : 'guest'); }
+
 function saveLocal() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ config, state, savedAt: Date.now() })); } catch(e) {}
+  try { localStorage.setItem(getLSKey(), JSON.stringify({ config, state, savedAt: Date.now() })); } catch(e) {}
+}
+
+function loadLocal() {
+  try { return JSON.parse(localStorage.getItem(getLSKey())); } catch(e) { return null; }
+}
+
+function clearGuestLocal() {
+  try { localStorage.removeItem(LS_PREFIX + 'guest'); } catch(e) {}
 }
 
 async function doSave() {
