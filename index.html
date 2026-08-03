@@ -186,7 +186,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromServer, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAoWLXlO-znjexLXtMyFA52CXaN80AXk0Y",
@@ -201,7 +201,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   const auth = getAuth(fbApp);
   const db = getFirestore(fbApp);
 
-  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, doc, getDoc, setDoc };
+  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, doc, getDoc: getDocFromServer, setDoc };
   window.fbReady = true;
   window.dispatchEvent(new Event('fb-ready'));
 </script>
@@ -365,8 +365,6 @@ let state = { sel:0, checks:{} };
 let currentUser = null;
 let isSignupMode = false;
 const LS_PREFIX = 'nokati_';
-let saveInFlight = false;
-let pendingSave = false;
 
 function setSyncStatus(saving) {
   const dot = document.getElementById('sync-dot');
@@ -465,23 +463,44 @@ async function loadData() {
     config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
     state: { sel:0, checks:{} }
   });
+  const local = loadLocal();
   if (!currentUser) {
-    const d = empty(); config = d.config; state = d.state;
+    if (local && local.config && local.state) {
+      config = local.config; state = local.state;
+    } else {
+      const d = empty(); config = d.config; state = d.state;
+    }
     render(); renderSettings(); return;
   }
   const userDocRef = window.fb.doc(window.fb.db, 'trackers', currentUser.uid);
+  let cloudData = null;
   try {
     const snap = await window.fb.getDoc(userDocRef);
     if (snap.exists()) {
-      const data = snap.data();
-      config = data.config ? JSON.parse(data.config) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-      state = data.state ? JSON.parse(data.state) : { sel:0, checks:{} };
-    } else {
-      const d = empty(); config = d.config; state = d.state;
-      await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
+      cloudData = snap.data();
     }
-  } catch(e) {
+  } catch(e) {}
+  if (cloudData) {
+    config = cloudData.config ? JSON.parse(cloudData.config) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    state = cloudData.state ? JSON.parse(cloudData.state) : { sel:0, checks:{} };
+    if (local && local.config && local.state && local.savedAt) {
+      try {
+        const cloudConfig = JSON.parse(cloudData.config || '{}');
+        const cloudState = JSON.parse(cloudData.state || '{}');
+        const localTaskCount = (local.config.dailyTasks?.length||0) + (local.config.flexTasks?.length||0) + (local.config.prizes?.length||0);
+        const cloudTaskCount = (cloudConfig.dailyTasks?.length||0) + (cloudConfig.flexTasks?.length||0) + (cloudConfig.prizes?.length||0);
+        if (localTaskCount > cloudTaskCount) {
+          config = local.config; state = local.state;
+          await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
+        }
+      } catch(e) {}
+    }
+  } else if (local && local.config && local.state) {
+    config = local.config; state = local.state;
+    try { await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) }); } catch(e) {}
+  } else {
     const d = empty(); config = d.config; state = d.state;
+    try { await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) }); } catch(e) {}
   }
   clearGuestLocal();
   saveLocal();
@@ -504,23 +523,21 @@ function clearGuestLocal() {
 }
 
 async function doSave() {
-  pendingSave = false;
   if (!currentUser) { saveLocal(); setSyncStatus(false); return; }
   setSyncStatus(true);
   saveLocal();
   try {
     const userDocRef = window.fb.doc(window.fb.db, 'trackers', currentUser.uid);
     await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
-  } catch(e) { setSyncStatus(false); return; }
-  setSyncStatus(false);
+    setSyncStatus(false);
+  } catch(e) { setSyncStatus(false); }
 }
 
+let saveTimer = null;
 function persistToFirestore() {
-  pendingSave = true;
   saveLocal();
-  if (saveInFlight) return;
-  saveInFlight = true;
-  doSave().finally(() => { saveInFlight = false; if (pendingSave) doSave(); });
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => doSave(), 500);
 }
 
 function saveConfig() { persistToFirestore(); }
@@ -748,7 +765,8 @@ if (window.fbReady) {
 }
 
 window.addEventListener('pagehide', () => {
-  if (pendingSave) doSave();
+  clearTimeout(saveTimer);
+  doSave();
   saveLocal();
 });
 
