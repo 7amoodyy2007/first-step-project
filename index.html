@@ -463,8 +463,11 @@ async function handleLogout() {
 }
 
 function initAuthListener() {
+  let loadingData = false;
   window.fb.onAuthStateChanged(window.fb.auth, async (user) => {
     if (user) {
+      if (loadingData) return;
+      loadingData = true;
       currentUser = user;
       document.getElementById('login-screen').classList.add('hidden');
       document.getElementById('app-content').classList.add('ready');
@@ -478,8 +481,10 @@ function initAuthListener() {
           avatarEl.textContent = (user.email || '?')[0].toUpperCase();
         }
       }
-      await loadData();
+      try { await loadData(); } catch(e) { console.error('loadData error:', e); }
+      loadingData = false;
     } else {
+      if (loadingData) return;
       currentUser = null;
       config = null;
       state = { sel:0, checks:{} };
@@ -550,10 +555,10 @@ async function loadData() {
     }
   } else if (local && local.config && local.state) {
     config = local.config; state = local.state;
-    try { await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) }); } catch(e) {}
+    try { await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) }, { merge: true }); } catch(e) { console.error('Save local→cloud:', e); }
   } else {
     const d = empty(); config = d.config; state = d.state;
-    try { await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) }); } catch(e) {}
+    try { await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) }, { merge: true }); } catch(e) { console.error('Save empty→cloud:', e); }
   }
   checkWeekReset();
   autoSelectDay();
