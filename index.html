@@ -194,7 +194,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocFromServer, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAoWLXlO-znjexLXtMyFA52CXaN80AXk0Y",
@@ -209,7 +209,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   const auth = getAuth(fbApp);
   const db = getFirestore(fbApp);
 
-  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, doc, getDoc: getDocFromServer, setDoc };
+  window.fb = { auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, doc, getDoc, setDoc };
   window.fbReady = true;
   window.dispatchEvent(new Event('fb-ready'));
 </script>
