@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nokati-v2';
+const CACHE_NAME = 'nokati-v3';
 const ASSETS = [
   './index.html',
   './manifest.json',
