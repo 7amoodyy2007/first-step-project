@@ -1,6 +1,5 @@
-const CACHE_NAME = 'nokati-v1';
+const CACHE_NAME = 'nokati-v2';
 const ASSETS = [
-  './',
   './index.html',
   './manifest.json',
   './icon-192.png',
@@ -22,7 +21,10 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('firebase') || e.request.url.includes('googleapis') || e.request.url.includes('gstatic') || e.request.url.includes('google.com')) {
+  const url = new URL(e.request.url);
+  const isFirebase = url.hostname.includes('firebaseio.com') || url.hostname.includes('googleapis.com') || url.hostname.includes('gstatic.com') || url.hostname.includes('google.com');
+
+  if (isFirebase) {
     e.respondWith(
       fetch(e.request).then(r => {
         const clone = r.clone();
@@ -32,11 +34,26 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
+
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const clone = r.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        return r;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
   e.respondWith(
-    fetch(e.request).then(r => {
-      const clone = r.clone();
-      caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-      return r;
-    }).catch(() => caches.match(e.request).then(cached => cached || caches.match('./index.html')))
+    caches.match(e.request).then(cached => {
+      const fetchPromise = fetch(e.request).then(r => {
+        const clone = r.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        return r;
+      }).catch(() => cached);
+      return cached || fetchPromise;
+    })
   );
 });
