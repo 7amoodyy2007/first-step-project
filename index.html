@@ -55,7 +55,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .page { display: none; padding: 16px; max-width: 480px; margin: 0 auto; padding-bottom: 40px; }
 .page.active { display: block; }
 
-.sync-banner { font-size: 11px; color: var(--text3); text-align: center; padding: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .install-banner { display: none; align-items: center; justify-content: space-between; gap: 10px; background: #2e2926; border-bottom: 1px solid #4a403a; padding: 10px 16px; max-width: 480px; margin: 0 auto; }
 .install-banner .txt { font-size: 12.5px; color: #f5f0eb; flex: 1; }
 .install-banner button { background: #86efac; color: #1c1917; border: none; padding: 8px 16px; border-radius: 20px; font-family: 'Cairo', sans-serif; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
@@ -98,9 +97,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .app-content { display: none; }
 .app-content.ready { display: block; }
 .logout-btn { font-size: 11px; color: #7a6a58; background: none; border: none; cursor: pointer; font-family: 'Cairo', sans-serif; text-decoration: underline; }
-.sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
-.sync-dot.saving { background: var(--orange); animation: pulse 1s infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
 .week-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .week-label { font-size: 18px; font-weight: 700; color: var(--text); }
@@ -262,8 +258,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   <button onclick="installApp()">تثبيت</button>
   <button class="close-x" onclick="dismissInstall()">✕</button>
 </div>
-<div class="sync-banner"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">محفوظ</span></div>
-
 <!-- TRACKER PAGE -->
 <div class="page active" id="page-tracker">
   <div class="week-bar">
@@ -366,7 +360,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     </div>
   </div>
 
-  <p class="save-note">كل التغييرات بتتحفظ تلقائياً ومتزامنة من أي جهاز تسجل دخول بيه ✓</p>
+  <p class="save-note">كل التغييرات بتتحفظ تلقائياً ✓</p>
   <div style="text-align:center; margin-top:18px;">
     <button class="logout-btn" onclick="handleLogout()">تسجيل الخروج</button>
   </div>
@@ -390,11 +384,7 @@ let currentUser = null;
 let isSignupMode = false;
 const LS_PREFIX = 'nokati_';
 
-function setSyncStatus(saving) {
-  const dot = document.getElementById('sync-dot');
-  const txt = document.getElementById('sync-text');
-  if (saving) { dot.classList.add('saving'); txt.textContent = 'جاري الحفظ...'; }
-  else { dot.classList.remove('saving'); txt.textContent = 'محفوظ'; }
+function setSyncStatus(saving) {}
 }
 
 function toggleAuthMode() {
@@ -581,20 +571,12 @@ function clearGuestLocal() {
 }
 
 async function doSave() {
-  if (!currentUser) { saveLocal(); setSyncStatus(false); return; }
-  setSyncStatus(true);
+  if (!currentUser) { saveLocal(); return; }
   saveLocal();
   try {
     const userDocRef = window.fb.doc(window.fb.db, 'trackers', currentUser.uid);
     await window.fb.setDoc(userDocRef, { config: JSON.stringify(config), state: JSON.stringify(state) });
-    setSyncStatus(false);
-  } catch(e) {
-    const dot = document.getElementById('sync-dot');
-    const txt = document.getElementById('sync-text');
-    if (dot) { dot.classList.remove('saving'); dot.style.background = 'var(--red)'; }
-    if (txt) txt.textContent = 'خطأ في الحفظ';
-    setTimeout(() => { if (dot) dot.style.background = ''; if (txt) txt.textContent = 'محفوظ'; }, 3000);
-  }
+  } catch(e) {}
 }
 
 let saveTimer = null;
