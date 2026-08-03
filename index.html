@@ -405,18 +405,13 @@ async function handleGoogleSignIn() {
     provider.setCustomParameters({ prompt: 'select_account' });
     await window.fb.signInWithPopup(window.fb.auth, provider);
   } catch(e) {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobile && (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request' || e.code === 'auth/popup-closed-by-user')) {
-      errEl.textContent = 'على الموبايل، سجّل دخول بالإيميل وكلمة السر عشان Google بيشتغل غلط على الموبايل';
-    } else {
-      const map = {
-        'auth/popup-closed-by-user': 'أغلقت نافذة تسجيل الدخول',
-        'auth/popup-blocked': 'المتصفح حجب النافذة، اسمح بالـ popups',
-        'auth/network-request-failed': 'مشكلة في الاتصال بالإنترنت',
-        'auth/cancelled-popup-request': '',
-      };
-      errEl.textContent = map[e.code] || ('حصل خطأ: ' + e.code);
-    }
+    const map = {
+      'auth/popup-closed-by-user': 'أغلقت نافذة تسجيل الدخول',
+      'auth/popup-blocked': 'المتصفح حجب النافذة، اسمح بالـ popups',
+      'auth/network-request-failed': 'مشكلة في الاتصال بالإنترنت',
+      'auth/cancelled-popup-request': '',
+    };
+    errEl.textContent = map[e.code] || ('حصل خطأ: ' + e.code);
   }
 }
 
@@ -459,16 +454,17 @@ async function handleAuthSubmit() {
 
 async function handleLogout() {
   if (!confirm('تسجيل الخروج؟')) return;
+  window._lastUser = null;
   await window.fb.signOut(window.fb.auth);
 }
 
 function initAuthListener() {
-  let loadingData = false;
+  window._lastUser = null;
   window.fb.onAuthStateChanged(window.fb.auth, async (user) => {
     if (user) {
-      if (loadingData) return;
-      loadingData = true;
+      window._lastUser = user;
       currentUser = user;
+      localStorage.setItem(LS_PREFIX + 'authed', '1');
       document.getElementById('login-screen').classList.add('hidden');
       document.getElementById('app-content').classList.add('ready');
       const emailEl = document.getElementById('user-email-display');
@@ -482,9 +478,8 @@ function initAuthListener() {
         }
       }
       try { await loadData(); } catch(e) { console.error('loadData error:', e); }
-      loadingData = false;
     } else {
-      if (loadingData) return;
+      if (window._lastUser) { window._lastUser = null; return; }
       currentUser = null;
       config = null;
       state = { sel:0, checks:{} };
