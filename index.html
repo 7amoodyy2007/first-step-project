@@ -400,6 +400,11 @@ function toggleAuthMode() {
 async function handleGoogleSignIn() {
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isStandalone) {
+    errEl.textContent = 'Google مش بيشتغل في وضع التطبيق. سجّل دخول بالإيميل وكلمة السر.';
+    return;
+  }
   try {
     const provider = new window.fb.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
