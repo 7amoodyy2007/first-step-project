@@ -507,7 +507,7 @@ function autoSelectDay() {
 function checkWeekReset() {
   const now = new Date();
   const dayOfWeek = now.getDay();
-  if (dayOfWeek === 5) {
+  if (dayOfWeek === 6) {
     const lastReset = localStorage.getItem(LS_PREFIX + (currentUser ? currentUser.uid : 'guest') + '_lastReset');
     const todayStr = now.toISOString().slice(0, 10);
     if (lastReset !== todayStr) {
